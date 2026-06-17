@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.idea/
+.venv/
+.virtualenv-app-data/
+/RobotCAN/
+Downloads/
+*.zip
+docs/
+references/
+models/mujoco/.gitkeep
+models/mujoco/gripper_scene.xml
+
+*.blf

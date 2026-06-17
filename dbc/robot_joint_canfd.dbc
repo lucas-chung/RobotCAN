@@ -1,0 +1,97 @@
+// Create by TSMaster 
+
+VERSION ""
+
+NS_ :
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+	BO_TX_BU_
+	BA_DEF_REL_
+	BA_REL_
+	BA_DEF_DEF_REL_
+	BU_SG_REL_
+	BU_EV_REL_
+	BU_BO_REL_
+	SG_MUL_VAL_
+
+BS_:
+
+BU_: TSMasterHost RobotControllerSim
+
+
+BO_ 257 Joint_Control_Command: 16 TSMasterHost
+ SG_ Enable : 0|8@1+ (1,0) [0|1] "" RobotControllerSim
+ SG_ Control_Mode : 8|8@1+ (1,0) [0|3] "" RobotControllerSim
+ SG_ Target_Position_deg : 16|32@1- (0.001,0) [-360|360] "deg" RobotControllerSim
+ SG_ Target_Velocity_deg_s : 48|32@1- (0.01,0) [-5000|5000] "deg/s" RobotControllerSim
+ SG_ Target_Torque_Nm : 80|16@1- (0.01,0) [-200|200] "Nm" RobotControllerSim
+ SG_ Reserved_Control : 96|16@1+ (1,0) [0|65535] "" RobotControllerSim
+
+BO_ 513 Joint_Status_Feedback: 16 RobotControllerSim
+ SG_ Actual_Position_deg : 0|32@1- (0.001,0) [-360|360] "deg" TSMasterHost
+ SG_ Actual_Velocity_deg_s : 32|32@1- (0.01,0) [-5000|5000] "deg/s" TSMasterHost
+ SG_ Actual_Torque_Nm : 64|16@1- (0.01,0) [-200|200] "Nm" TSMasterHost
+ SG_ Motor_Temperature_C : 80|8@1+ (1,0) [0|200] "degC" TSMasterHost
+ SG_ Error_Code : 88|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Enable_Status : 96|8@1+ (1,0) [0|1] "" TSMasterHost
+ SG_ Feedback_Mode : 104|8@1+ (1,0) [0|3] "" TSMasterHost
+ SG_ Reserved_Status : 112|16@1+ (1,0) [0|65535] "" TSMasterHost
+
+BO_ 769 Joint_Fault_Status: 16 RobotControllerSim
+ SG_ Fault_Code : 0|16@1+ (1,0) [0|65535] "" TSMasterHost
+ SG_ Fault_Severity : 16|8@1+ (1,0) [0|3] "" TSMasterHost
+ SG_ Fault_Source : 24|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Fault_Detail : 32|32@1+ (1,0) [0|4294967295] "" TSMasterHost
+
+BO_ 1025 Joint_Diag_Response: 16 RobotControllerSim
+ SG_ Diag_Service : 0|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Diag_SubFunction : 8|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Diag_Data0 : 16|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Diag_Data1 : 24|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Diag_Data2 : 32|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Diag_Data3 : 40|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Diag_Data4 : 48|8@1+ (1,0) [0|255] "" TSMasterHost
+ SG_ Diag_Data5 : 56|8@1+ (1,0) [0|255] "" TSMasterHost
+
+BA_DEF_  "DBName" STRING ;
+BA_DEF_  "BusType" STRING ;
+BA_DEF_ BO_ "VFrameFormat" ENUM "StandardCAN","ExtendedCAN","reserved","J1939PG","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","StandardCAN_FD","ExtendedCAN_FD";
+BA_DEF_ BO_ "CANFD_BRS" ENUM "0","1";
+BA_DEF_ BU_ "ECU" STRING ;
+BA_DEF_ BU_ "NodeLayerModules" STRING ;
+BA_DEF_DEF_ "DBName" "";
+BA_DEF_DEF_ "BusType" "CAN";
+BA_DEF_DEF_ "VFrameFormat" "StandardCAN";
+BA_DEF_DEF_ "CANFD_BRS" "1";
+BA_DEF_DEF_ "ECU" "";
+BA_DEF_DEF_ "NodeLayerModules" "";
+BA_ "BusType" "CAN FD";
+BA_ "DBName" "robot_joint_canfd";
+BA_ "VFrameFormat" BO_ 257 14;
+BA_ "VFrameFormat" BO_ 513 14;
+BA_ "VFrameFormat" BO_ 769 14;
+BA_ "VFrameFormat" BO_ 1025 14;
+VAL_ 257 Enable 0 "Disable" 1 "";
+VAL_ 257 Control_Mode 0 "" 1 "Position" 2 "Velocity" 3 "Torque";
+VAL_ 513 Enable_Status 0 "Disable" 1 "";
+VAL_ 513 Feedback_Mode 0 "" 1 "Position" 2 "Velocity" 3 "Torque";
+VAL_ 769 Fault_Severity 0 "Info" 1 "Warning" 2 "Error" 3 "";
+VAL_ 769 Fault_Source 0 "" 1 "Motor" 2 "Encoder" 3 "Temperature" 4 "Communication" 5 "Power";
