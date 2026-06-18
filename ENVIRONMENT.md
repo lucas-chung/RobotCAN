@@ -1,24 +1,14 @@
 # 1. Environment Setup / 环境说明
 
-## English Version
+## English
 
-### 1.1 Project Overview
+### 1.1 Purpose
 
-This project is a CAN FD robot test environment based on:
+This document records the environment used for the current RobotCAN demo.
 
-- `TSMaster`
-- `Python`
-- `MuJoCo`
-- `TSMasterAPI`
+It is mainly here so the setup can be reproduced without guessing versions.
 
-The current implementation supports:
-
-- attaching to an opened TSMaster instance through RPC
-- sending and receiving CAN FD messages through TSMasterAPI
-- running a Python bridge between TSMaster and MuJoCo
-- loading a combined `UR5e + Robotiq 2F-85` MuJoCo scene
-
-### 1.2 Verified Versions
+### 1.2 Verified versions
 
 - OS: `Windows`
 - Python: `3.11.8`
@@ -26,17 +16,17 @@ The current implementation supports:
 - `tsmaster.lib`: `2026.5.13.1981`
 - `mujoco`: `3.9.0`
 
-### 1.3 Python Virtual Environment
+### 1.3 Python environment
 
 The current virtual environment name is `RobotCAN`.
 
-Environment path:
+Path:
 
 - `D:\data\RobotCAN\RobotCAN`
 
-### 1.4 Installation Commands
+### 1.4 Install commands
 
-#### 1.4.1 Install TSMasterAPI Python package
+#### 1.4.1 Install TSMasterAPI
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install tsmaster.lib==2026.5.13.1981
@@ -45,37 +35,37 @@ D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install tsmaster.lib==2026.5
 #### 1.4.2 Install MuJoCo
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install mujoco
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install mujoco==3.9.0
 ```
 
-#### 1.4.3 Check installed versions
+#### 1.4.3 Check installed packages
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip show tsmaster.lib
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip show mujoco
 ```
 
-### 1.5 TSMaster Runtime Requirements
+### 1.5 Before running
 
-Before running this project:
+Before starting the Python tools, make sure:
 
-- install and open TSMaster
-- use TSMaster version `2026.5.13.1981`
-- open the target TSMaster project first
-- import the DBC file
-- make sure simulation can be started via RPC or is already running
+- `TSMaster` is installed
+- `TSMaster` is already open
+- the target project is already loaded
+- the DBC has been imported
+- simulation can start normally
 
-### 1.6 Key Files
+### 1.6 Main files
 
-- Entrypoint: `main.py`
+- entry: `main.py`
 - CLI: `src/robotcan/app/cli.py`
-- TSMaster transport: `src/robotcan/transport/tsmaster_attached.py`
+- transport: `src/robotcan/transport/tsmaster_attached.py`
+- controller loop: `src/robotcan/controller/loop.py`
 - MuJoCo backend: `src/robotcan/simulation/mujoco/backend.py`
-- DBC: `dbc/robot_joint_canfd.dbc`
-- Single-joint scene: `models/mujoco/joint_scene.xml`
-- UR5e + gripper scene: `models/mujoco/ur5e_2f85_scene.xml`
+- current DBC: `dbc/robot_arm_hand_canfd.dbc`
+- MuJoCo demo scene: `models/mujoco/ur5e_2f85_scene.xml`
 
-### 1.7 Common Commands
+### 1.7 Common commands
 
 #### 1.7.1 Check TSMaster status
 
@@ -89,31 +79,33 @@ D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py status --a
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py start --app-name robot --server-name TSMaster
 ```
 
-#### 1.7.3 Run the MuJoCo bridge
+#### 1.7.3 Run the bridge
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py bridge --app-name robot --server-name TSMaster --model D:\data\RobotCAN\models\mujoco\ur5e_2f85_scene.xml
 ```
 
+#### 1.7.4 Send hand control
+
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-control --app-name robot --server-name TSMaster --position 30 --velocity 0 --torque 0 --mode 1 --period-ms 10
+```
+
+#### 1.7.5 Send arm control
+
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-arm-control --app-name robot --server-name TSMaster --j1 0 --j2 -30 --j3 60 --j4 0 --j5 90 --j6 0 --mode 1 --period-ms 10
+```
+
 ---
 
-## 中文版本
+## 中文
 
-### 1.1 项目概述
+### 1.1 文档用途
 
-本项目是一个基于以下组件构建的 CAN FD 机器人测试环境：
+这个文档主要是把当前 RobotCAN 演示环境记清楚。
 
-- `TSMaster`
-- `Python`
-- `MuJoCo`
-- `TSMasterAPI`
-
-当前实现已经支持：
-
-- 通过 RPC 连接已打开的 TSMaster 实例
-- 通过 TSMasterAPI 发送和接收 CAN FD 报文
-- 使用 Python 在 TSMaster 与 MuJoCo 之间做桥接
-- 加载组合好的 `UR5e + Robotiq 2F-85` MuJoCo 场景
+后面谁来复现这套环境，都不用再一点点猜版本。
 
 ### 1.2 已验证版本
 
@@ -125,15 +117,15 @@ D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py bridge --a
 
 ### 1.3 Python 虚拟环境
 
-当前虚拟环境名称为 `RobotCAN`。
+当前虚拟环境名称是 `RobotCAN`。
 
-虚拟环境路径：
+路径：
 
 - `D:\data\RobotCAN\RobotCAN`
 
 ### 1.4 安装命令
 
-#### 1.4.1 安装 TSMasterAPI 对应 Python 包
+#### 1.4.1 安装 TSMasterAPI
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install tsmaster.lib==2026.5.13.1981
@@ -142,39 +134,39 @@ D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install tsmaster.lib==2026.5
 #### 1.4.2 安装 MuJoCo
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install mujoco
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip install mujoco==3.9.0
 ```
 
-#### 1.4.3 查看已安装版本
+#### 1.4.3 查看安装结果
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip show tsmaster.lib
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe -m pip show mujoco
 ```
 
-### 1.5 TSMaster 运行前提
+### 1.5 运行前确认
 
-在运行本项目之前，请确认：
+在跑 Python 工具前，先确认下面几件事：
 
-- 已安装并打开 TSMaster
-- 使用的 TSMaster 版本为 `2026.5.13.1981`
-- 已提前打开目标 TSMaster 工程
-- 已导入 DBC 文件
-- 仿真可通过 RPC 启动，或已经处于运行状态
+- `TSMaster` 已经安装好
+- `TSMaster` 已经打开
+- 目标工程已经加载
+- DBC 已经导入
+- 仿真本身可以正常启动
 
 ### 1.6 关键文件
 
 - 入口：`main.py`
 - CLI：`src/robotcan/app/cli.py`
-- TSMaster 传输层：`src/robotcan/transport/tsmaster_attached.py`
+- 传输层：`src/robotcan/transport/tsmaster_attached.py`
+- 控制循环：`src/robotcan/controller/loop.py`
 - MuJoCo 后端：`src/robotcan/simulation/mujoco/backend.py`
-- DBC：`dbc/robot_joint_canfd.dbc`
-- 单关节场景：`models/mujoco/joint_scene.xml`
-- 机械臂+夹爪场景：`models/mujoco/ur5e_2f85_scene.xml`
+- 当前 DBC：`dbc/robot_arm_hand_canfd.dbc`
+- MuJoCo 演示场景：`models/mujoco/ur5e_2f85_scene.xml`
 
 ### 1.7 常用命令
 
-#### 1.7.1 检查 TSMaster 状态
+#### 1.7.1 查看 TSMaster 状态
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py status --app-name robot --server-name TSMaster
@@ -186,8 +178,20 @@ D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py status --a
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py start --app-name robot --server-name TSMaster
 ```
 
-#### 1.7.3 运行 MuJoCo 桥接
+#### 1.7.3 运行桥接程序
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py bridge --app-name robot --server-name TSMaster --model D:\data\RobotCAN\models\mujoco\ur5e_2f85_scene.xml
+```
+
+#### 1.7.4 发送手爪控制
+
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-control --app-name robot --server-name TSMaster --position 30 --velocity 0 --torque 0 --mode 1 --period-ms 10
+```
+
+#### 1.7.5 发送机械臂控制
+
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-arm-control --app-name robot --server-name TSMaster --j1 0 --j2 -30 --j3 60 --j4 0 --j5 90 --j6 0 --mode 1 --period-ms 10
 ```

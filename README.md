@@ -1,121 +1,179 @@
 # RobotCAN
 
-## English Version
+## English
 
-### 1. Overview
+### 1. What this repo is
 
-RobotCAN is a lightweight robot CAN FD test project built around:
+RobotCAN is a small test project that connects `TSMaster`, `Python`, and `MuJoCo`.
 
-- `TSMaster`
-- `Python`
-- `MuJoCo`
-- `TSMasterAPI`
+The workflow is straightforward:
 
-The current version focuses on an attach-to-existing-TSMaster workflow:
+- `TSMaster` sends and monitors CAN FD frames
+- the Python bridge attaches to the opened `TSMaster` project
+- the bridge forwards control frames into `MuJoCo`
+- `MuJoCo` runs the robot model and sends state back through the bridge
 
-- attach to an opened TSMaster project through RPC
-- send and receive CAN FD messages through TSMasterAPI
-- bridge CAN commands into MuJoCo
-- run a combined `UR5e + Robotiq 2F-85` simulation model
+The current demo is built around:
 
-### 1.1 Current Repository Structure
+- `UR5e`
+- `Robotiq 2F-85`
+- CAN FD control and feedback through `TSMasterAPI`
 
-This repository intentionally keeps a shallow structure for easier browsing:
+### 1.1 Repository layout
 
-- `main.py`: Python entrypoint
-- `ENVIRONMENT.md`: bilingual environment and version guide
+This repository is kept intentionally shallow so it is easy to open and browse:
+
+- `main.py`: command entry
+- `ENVIRONMENT.md`: environment and version notes
 - `dbc/`: DBC files
 - `models/mujoco/`: MuJoCo scenes and robot assets
-- `src/robotcan/`: source code
+- `src/robotcan/`: Python source
 
-### 1.2 Current Status
+### 1.2 What works now
 
-The project currently supports:
+Current code already supports:
 
-- TSMaster RPC start/status/stop workflow
-- cyclic CAN FD control frame creation
-- CAN FD feedback readback
-- TSMaster-to-MuJoCo bridge
-- `UR5e + Robotiq 2F-85` model loading in MuJoCo
+- attaching to an opened `TSMaster` instance through RPC
+- checking and starting simulation from Python
+- cyclic CAN FD transmission
+- CAN FD FIFO receive
+- a Python bridge from `TSMaster` to `MuJoCo`
+- a combined `UR5e + Robotiq 2F-85` MuJoCo scene
+- separate hand and arm command channels
 
-### 1.3 Quick Start
+### 1.3 Current CAN message split
 
-1. Open TSMaster and load your project
-2. Import the DBC file in `dbc/`
-3. Start simulation in TSMaster or use the Python CLI to start it
-4. Run the bridge:
+#### Hand
+
+- `0x101` `Hand_Control_Command`
+- `0x201` `Hand_Status_Feedback`
+- `0x301` `Hand_Fault_Status`
+- `0x401` `Hand_Diag_Response`
+
+#### Arm
+
+- `0x110` `Arm_Control_Command`
+- `0x210` `Arm_Status_Feedback`
+- `0x310` `Arm_Fault_Status`
+- `0x410` `Arm_Diag_Response`
+
+### 1.4 Quick start
+
+1. Open `TSMaster`
+2. Open your target project
+3. Import the DBC in `dbc/`
+4. Make sure simulation can start normally
+5. Run the bridge:
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py bridge --app-name robot --server-name TSMaster --model D:\data\RobotCAN\models\mujoco\ur5e_2f85_scene.xml
 ```
 
-5. Send `0x101 Joint_Control_Command` from TSMaster
+6. Send hand control:
 
-At the current stage, the existing single-command frame is mainly mapped to gripper open/close behavior.
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-control --app-name robot --server-name TSMaster --position 30 --velocity 0 --torque 0 --mode 1 --period-ms 10
+```
 
-### 1.4 Notes
+7. Send arm control:
 
-- This repository currently uses a single control frame structure.
-- Full 6-axis UR5e joint control plus gripper control will require a new CAN FD command design and DBC update.
-- Verified environment details are documented in `ENVIRONMENT.md`.
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-arm-control --app-name robot --server-name TSMaster --j1 0 --j2 -30 --j3 60 --j4 0 --j5 90 --j6 0 --mode 1 --period-ms 10
+```
+
+### 1.5 Notes
+
+- `TSMaster` should already be open before running the Python tools
+- this project uses attach mode and does not try to open a second `TSMaster` instance
+- when the DBC changes, the Python protocol definitions should be updated together
+- detailed setup notes are in `ENVIRONMENT.md`
 
 ---
 
-## 中文版本
+## 中文
 
-### 1. 项目概述
+### 1. 这个仓库是做什么的
 
-RobotCAN 是一个基于以下组件构建的轻量级机器人 CAN FD 测试项目：
+RobotCAN 是一个把 `TSMaster`、`Python` 和 `MuJoCo` 串起来的小型测试工程。
 
-- `TSMaster`
-- `Python`
-- `MuJoCo`
-- `TSMasterAPI`
+整套流程比较直接：
 
-当前版本重点实现的是“连接已打开的 TSMaster”工作流：
+- `TSMaster` 负责发报文、看报文
+- Python 桥接程序附着到已经打开的 `TSMaster` 工程
+- 桥接程序把控制报文读出来，转给 `MuJoCo`
+- `MuJoCo` 跑模型，再把状态通过桥接程序回到总线
 
-- 通过 RPC 连接已经打开的 TSMaster 工程
-- 通过 TSMasterAPI 发送和接收 CAN FD 报文
-- 将 CAN 控制命令桥接到 MuJoCo
-- 运行组合好的 `UR5e + Robotiq 2F-85` 仿真模型
+目前这套演示主要围绕下面这组模型跑通：
 
-### 1.1 当前仓库结构
+- `UR5e`
+- `Robotiq 2F-85`
+- 基于 `TSMasterAPI` 的 CAN FD 控制与反馈
 
-为了方便大家点击查看，这个仓库尽量保持浅层目录：
+### 1.1 仓库结构
 
-- `main.py`：Python 入口
-- `ENVIRONMENT.md`：中英文环境说明
+这个仓库故意没有搞很多层目录，方便直接点开看：
+
+- `main.py`：命令入口
+- `ENVIRONMENT.md`：环境和版本说明
 - `dbc/`：DBC 文件
-- `models/mujoco/`：MuJoCo 场景和机器人模型资源
-- `src/robotcan/`：源码
+- `models/mujoco/`：MuJoCo 场景和模型资源
+- `src/robotcan/`：Python 源码
 
-### 1.2 当前功能状态
+### 1.2 现在已经能做什么
 
-当前已经支持：
+当前版本已经打通了这些事情：
 
-- TSMaster RPC 的启动 / 状态查询 / 停止
-- 周期 CAN FD 控制报文创建
-- CAN FD 反馈报文读取
-- TSMaster 到 MuJoCo 的桥接
-- 在 MuJoCo 中加载 `UR5e + Robotiq 2F-85`
+- 通过 RPC 附着到已经打开的 `TSMaster`
+- 用 Python 查询和启动仿真状态
+- 创建周期 CAN FD 报文
+- 从 FIFO 读取 CAN FD 报文
+- 在 `TSMaster` 和 `MuJoCo` 之间做桥接
+- 加载 `UR5e + Robotiq 2F-85` 联合场景
+- 把手爪控制和机械臂控制拆成两套报文
 
-### 1.3 快速开始
+### 1.3 当前报文划分
 
-1. 打开 TSMaster 并加载工程
-2. 导入 `dbc/` 下的 DBC 文件
-3. 在 TSMaster 中启动仿真，或者使用 Python CLI 启动
-4. 运行桥接：
+#### 手爪
+
+- `0x101` `Hand_Control_Command`
+- `0x201` `Hand_Status_Feedback`
+- `0x301` `Hand_Fault_Status`
+- `0x401` `Hand_Diag_Response`
+
+#### 机械臂
+
+- `0x110` `Arm_Control_Command`
+- `0x210` `Arm_Status_Feedback`
+- `0x310` `Arm_Fault_Status`
+- `0x410` `Arm_Diag_Response`
+
+### 1.4 快速开始
+
+1. 打开 `TSMaster`
+2. 打开目标工程
+3. 导入 `dbc/` 里的 DBC
+4. 确认仿真能正常启动
+5. 运行桥接程序：
 
 ```powershell
 D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py bridge --app-name robot --server-name TSMaster --model D:\data\RobotCAN\models\mujoco\ur5e_2f85_scene.xml
 ```
 
-5. 在 TSMaster 中发送 `0x101 Joint_Control_Command`
+6. 发送手爪控制：
 
-当前阶段，这个单路控制报文主要映射为夹爪的开合控制。
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-control --app-name robot --server-name TSMaster --position 30 --velocity 0 --torque 0 --mode 1 --period-ms 10
+```
 
-### 1.4 说明
+7. 发送机械臂控制：
 
-- 当前仓库使用的是单控制量报文结构
-- 如果后续要完整控制 `UR5e` 六轴和夹爪，需要重新设计 CAN FD 控制报文和 DBC
-- 已验证环境和安装方式请查看 `ENVIRONMENT.md`
+```powershell
+D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-arm-control --app-name robot --server-name TSMaster --j1 0 --j2 -30 --j3 60 --j4 0 --j5 90 --j6 0 --mode 1 --period-ms 10
+```
+
+### 1.5 说明
+
+- 跑 Python 工具前，`TSMaster` 需要先打开
+- 这个工程走的是附着模式，尽量不再新起一个 `TSMaster`
+- 后面如果继续改 DBC，Python 里的协议定义也要一起改
+- 更细的安装和版本信息看 `ENVIRONMENT.md`

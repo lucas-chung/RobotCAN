@@ -4,7 +4,16 @@ import argparse
 from pathlib import Path
 import time
 
-from robotcan.protocol import JointControlCommand, JointFaultStatus, JointStatusFeedback
+from robotcan.protocol import (
+    ARM_STATUS_FEEDBACK_ID,
+    ARM_FAULT_STATUS_ID,
+    ArmControlCommand,
+    ArmFaultStatus,
+    ArmStatusFeedback,
+    HandControlCommand,
+    HandFaultStatus,
+    HandStatusFeedback,
+)
 from robotcan.app.run_mujoco_bridge import main as bridge_main
 from robotcan.transport.tsmaster_attached import AttachedTSMaster, TSMasterError
 
@@ -35,7 +44,7 @@ def _build_parser() -> argparse.ArgumentParser:
     dbc_parser.add_argument("path", help="Absolute or relative path to the DBC file.")
     dbc_parser.add_argument("--channel-mask", default="0", help='TSMaster channel mask, for example "0" or "0,1".')
 
-    send_parser = subparsers.add_parser("send-control", help="Create a cyclic control command frame 0x101.")
+    send_parser = subparsers.add_parser("send-control", help="Create a cyclic hand control command frame 0x101.")
     _add_connection_args(send_parser)
     send_parser.add_argument("--position", type=float, default=0.0, help="Target position in degrees.")
     send_parser.add_argument("--velocity", type=float, default=0.0, help="Target velocity in deg/s.")
@@ -43,6 +52,18 @@ def _build_parser() -> argparse.ArgumentParser:
     send_parser.add_argument("--mode", type=int, default=1, help="1=position, 2=velocity, 3=torque.")
     send_parser.add_argument("--disable", action="store_true", help="Clear the enable bit.")
     send_parser.add_argument("--period-ms", type=int, default=10, help="Cyclic transmission period in milliseconds.")
+
+    arm_send_parser = subparsers.add_parser("send-arm-control", help="Create a cyclic arm control command frame 0x110.")
+    _add_connection_args(arm_send_parser)
+    arm_send_parser.add_argument("--j1", type=float, default=0.0)
+    arm_send_parser.add_argument("--j2", type=float, default=0.0)
+    arm_send_parser.add_argument("--j3", type=float, default=0.0)
+    arm_send_parser.add_argument("--j4", type=float, default=0.0)
+    arm_send_parser.add_argument("--j5", type=float, default=0.0)
+    arm_send_parser.add_argument("--j6", type=float, default=0.0)
+    arm_send_parser.add_argument("--mode", type=int, default=1, help="1=position, 2=velocity-like, 3=increment-like.")
+    arm_send_parser.add_argument("--disable", action="store_true", help="Clear the enable bit.")
+    arm_send_parser.add_argument("--period-ms", type=int, default=10, help="Cyclic transmission period in milliseconds.")
 
     clear_parser = subparsers.add_parser("clear-cyclic", help="Delete all cyclic messages in the current TSMaster application.")
     _add_connection_args(clear_parser)
@@ -75,31 +96,60 @@ def _print_feedback(frames) -> None:
     for frame in frames:
         if frame.identifier == 0x201:
             try:
-                decoded = JointStatusFeedback.decode(frame.payload)
+                decoded = HandStatusFeedback.decode(frame.payload)
                 print(
-                    "status:",
+                    "hand status:",
                     f"pos={decoded.actual_position_deg:.3f}deg",
                     f"vel={decoded.actual_velocity_deg_s:.2f}deg/s",
                     f"torque={decoded.actual_torque_nm:.2f}Nm",
                     f"temp={decoded.motor_temperature_c}C",
                     f"error={decoded.error_code}",
                     f"enable={decoded.enable_status}",
-                    f"mode={decoded.control_mode}",
+                    f"mode={decoded.feedback_mode}",
                 )
             except Exception as exc:
-                print(f"status decode failed: {exc}")
+                print(f"hand status decode failed: {exc}")
         elif frame.identifier == 0x301:
             try:
-                fault = JointFaultStatus.decode(frame.payload)
+                fault = HandFaultStatus.decode(frame.payload)
                 print(
-                    "fault:",
-                    f"error={fault.error_code}",
-                    f"severity={fault.severity}",
-                    f"detail0={fault.detail0}",
-                    f"detail1={fault.detail1}",
+                    "hand fault:",
+                    f"error={fault.fault_code}",
+                    f"severity={fault.fault_severity}",
+                    f"source={fault.fault_source}",
+                    f"detail={fault.fault_detail}",
                 )
             except Exception as exc:
-                print(f"fault decode failed: {exc}")
+                print(f"hand fault decode failed: {exc}")
+        elif frame.identifier == ARM_STATUS_FEEDBACK_ID:
+            try:
+                decoded = ArmStatusFeedback.decode(frame.payload)
+                print(
+                    "arm status:",
+                    f"j1={decoded.j1_actual_deg:.1f}",
+                    f"j2={decoded.j2_actual_deg:.1f}",
+                    f"j3={decoded.j3_actual_deg:.1f}",
+                    f"j4={decoded.j4_actual_deg:.1f}",
+                    f"j5={decoded.j5_actual_deg:.1f}",
+                    f"j6={decoded.j6_actual_deg:.1f}",
+                    f"enable={decoded.enable_status}",
+                    f"mode={decoded.feedback_mode}",
+                    f"error={decoded.error_code}",
+                )
+            except Exception as exc:
+                print(f"arm status decode failed: {exc}")
+        elif frame.identifier == ARM_FAULT_STATUS_ID:
+            try:
+                fault = ArmFaultStatus.decode(frame.payload)
+                print(
+                    "arm fault:",
+                    f"error={fault.fault_code}",
+                    f"severity={fault.fault_severity}",
+                    f"source={fault.fault_source}",
+                    f"detail={fault.fault_detail}",
+                )
+            except Exception as exc:
+                print(f"arm fault decode failed: {exc}")
         else:
             print(
                 "frame:",
@@ -198,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
 
             if args.command == "send-control":
-                payload = JointControlCommand(
+                payload = HandControlCommand(
                     enable=not args.disable,
                     mode=args.mode,
                     target_position_deg=args.position,
@@ -207,6 +257,21 @@ def main(argv: list[str] | None = None) -> int:
                 ).encode()
                 app.send_default_control(payload, args.period_ms)
                 print(f"cyclic_control_added id=0x101 period_ms={args.period_ms} payload={payload.hex(' ')}")
+                return 0
+
+            if args.command == "send-arm-control":
+                payload = ArmControlCommand(
+                    enable=not args.disable,
+                    mode=args.mode,
+                    j1_target_deg=args.j1,
+                    j2_target_deg=args.j2,
+                    j3_target_deg=args.j3,
+                    j4_target_deg=args.j4,
+                    j5_target_deg=args.j5,
+                    j6_target_deg=args.j6,
+                ).encode()
+                app.add_cyclic_canfd(0x110, payload, args.period_ms)
+                print(f"cyclic_arm_control_added id=0x110 period_ms={args.period_ms} payload={payload.hex(' ')}")
                 return 0
 
             if args.command == "clear-cyclic":
