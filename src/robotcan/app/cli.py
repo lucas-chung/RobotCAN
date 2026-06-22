@@ -15,6 +15,7 @@ from robotcan.protocol import (
     HandStatusFeedback,
 )
 from robotcan.app.run_mujoco_bridge import main as bridge_main
+from robotcan.tasks import AlgorithmDemoConfig, AlgorithmDemoRunner
 from robotcan.transport.tsmaster_attached import AttachedTSMaster, TSMasterError
 
 
@@ -88,6 +89,11 @@ def _build_parser() -> argparse.ArgumentParser:
     bridge_parser.add_argument("--status-period", type=float, default=0.01)
     bridge_parser.add_argument("--fault-period", type=float, default=0.1)
     bridge_parser.add_argument("--diag-period", type=float, default=0.1)
+
+    demo_parser = subparsers.add_parser("algorithm-demo", help="Run a simple Python-side arm+hand demo while TSMaster stays open for observation.")
+    _add_connection_args(demo_parser)
+    demo_parser.add_argument("--command-period", type=float, default=0.05, help="Seconds between control commands sent from Python.")
+    demo_parser.add_argument("--feedback-period", type=float, default=0.05, help="Seconds between feedback FIFO polls.")
 
     return parser
 
@@ -296,6 +302,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"diag_handle={uds_handle}")
                 app.delete_diag_module(uds_handle)
                 print(f"diag_deleted={uds_handle}")
+                return 0
+
+            if args.command == "algorithm-demo":
+                runner = AlgorithmDemoRunner(
+                    app=app,
+                    config=AlgorithmDemoConfig(
+                        command_period_s=args.command_period,
+                        feedback_poll_period_s=args.feedback_period,
+                    ),
+                )
+                runner.run()
                 return 0
         finally:
             app.close()
