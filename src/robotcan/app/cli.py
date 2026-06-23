@@ -16,7 +16,14 @@ from robotcan.protocol import (
 )
 from robotcan.app.camera_preview import main as camera_preview_main
 from robotcan.app.run_mujoco_bridge import main as bridge_main
-from robotcan.tasks import AlgorithmDemoConfig, AlgorithmDemoRunner, VisionDetectConfig, VisionDetectDemoRunner
+from robotcan.tasks import (
+    AlgorithmDemoConfig,
+    AlgorithmDemoRunner,
+    RepeatPickPlaceConfig,
+    RepeatPickPlaceTestRunner,
+    VisionDetectConfig,
+    VisionDetectDemoRunner,
+)
 from robotcan.transport.tsmaster_attached import AttachedTSMaster, TSMasterError
 
 
@@ -119,6 +126,13 @@ def _build_parser() -> argparse.ArgumentParser:
     vision_parser.add_argument("--height", type=int, default=480)
     vision_parser.add_argument("--duration", type=float)
     vision_parser.add_argument("--print-period", type=float, default=0.5)
+
+    repeat_parser = subparsers.add_parser("repeat-pick-place-test", help="Run repeated MuJoCo pick/place cycles between home and a 90-degree rotated target.")
+    repeat_parser.add_argument("--model", required=True)
+    repeat_parser.add_argument("--cycles", type=int, default=10)
+    repeat_parser.add_argument("--dt", type=float, default=0.01)
+    repeat_parser.add_argument("--no-viewer", action="store_true")
+    repeat_parser.add_argument("--success-tolerance", type=float, default=0.04)
 
     return parser
 
@@ -226,6 +240,18 @@ def main(argv: list[str] | None = None) -> int:
                 print_period_s=args.print_period,
             )
         ).run()
+
+    if args.command == "repeat-pick-place-test":
+        RepeatPickPlaceTestRunner(
+            RepeatPickPlaceConfig(
+                model_path=args.model,
+                cycles=args.cycles,
+                dt_s=args.dt,
+                success_tolerance_m=args.success_tolerance,
+                enable_viewer=not args.no_viewer,
+            )
+        ).run()
+        return 0
 
     if args.command == "bridge":
         bridge_args = []

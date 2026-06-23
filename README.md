@@ -134,6 +134,17 @@ Run the perception demo:
 .\.venv\Scripts\python.exe .\main.py vision-detect-demo --model .\models\mujoco\ur5e_2f85_scene.xml
 ```
 
+Run the repeated MuJoCo pick/place test:
+
+```powershell
+.\.venv\Scripts\python.exe .\main.py repeat-pick-place-test --model .\models\mujoco\ur5e_2f85_scene.xml --cycles 10
+```
+
+This test is a deterministic MuJoCo test fixture: while the gripper is closed,
+the target block is carried under the gripper so repeatability metrics are
+stable. Replace that fixture with contact-based grasping, IK, and visual
+servoing as those modules mature.
+
 Run the Python-side algorithm demo:
 
 ```powershell
@@ -182,6 +193,7 @@ Implemented now:
 - `perception/color.py` detects the red target block
 - `perception/rgbd.py` converts pixel + depth into MuJoCo world coordinates
 - `tasks/vision_detect_demo.py` displays the detection result and prints target coordinates
+- `tasks/repeat_pick_place_test.py` runs 10-cycle home-to-rotated-target pick/place testing
 
 Next steps:
 
