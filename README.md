@@ -140,10 +140,15 @@ Run the repeated MuJoCo pick/place test:
 .\.venv\Scripts\python.exe .\main.py repeat-pick-place-test --model .\models\mujoco\ur5e_2f85_scene.xml --cycles 10
 ```
 
-This test is a deterministic MuJoCo test fixture: while the gripper is closed,
-the target block is carried under the gripper so repeatability metrics are
-stable. Replace that fixture with contact-based grasping, IK, and visual
-servoing as those modules mature.
+Run this command by itself. If a `bridge` command is already running with its
+own MuJoCo viewer, close it first or use `--no-viewer`; otherwise two MuJoCo
+windows will be open.
+
+This test is still a deterministic MuJoCo test fixture, but it now uses simple
+site-position IK to move the gripper down to the block first. The block is only
+attached after the gripper reaches the grasp pose within a distance threshold.
+Replace the attach fixture with contact-based grasping and visual servoing as
+those modules mature.
 
 Run the Python-side algorithm demo:
 

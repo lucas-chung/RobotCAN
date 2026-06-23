@@ -30,8 +30,12 @@ class RepeatPickPlaceConfig:
     cycles: int = 10
     dt_s: float = 0.01
     settle_s: float = 0.8
-    move_s: float = 2.0
+    move_s: float = 1.5
     hold_s: float = 0.4
+    approach_z_m: float = 0.28
+    grasp_z_m: float = 0.14
+    carry_z_offset_m: float = 0.105
+    attach_tolerance_m: float = 0.055
     success_tolerance_m: float = 0.04
     enable_viewer: bool = True
     camera_name: str = "top_camera"
@@ -54,6 +58,7 @@ class RepeatPickPlaceTestRunner:
         self.pinch_site_id = int(self.mujoco.mj_name2id(self.model, self.mujoco.mjtObj.mjOBJ_SITE, "pinch"))
         self.renderer = self.mujoco.Renderer(self.model, height=480, width=640)
         self.detector = RedObjectDetector(self.model, self.data, self.config.camera_name)
+        self.arm_joint_qpos_adrs = self.backend.arm_joint_qpos_adrs
 
     def run(self) -> list[PickPlaceCycleResult]:
         results: list[PickPlaceCycleResult] = []
@@ -68,17 +73,41 @@ class RepeatPickPlaceTestRunner:
                 if detected is not None:
                     print(f"  detected source xyz={self._round_xyz(detected)}")
 
-                self._set_object_xyz(source.object_xyz)
-                self._move_arm(source.arm_joint_deg, hand_position=80.0, duration_s=self.config.move_s)
-                self._move_arm(source.arm_joint_deg, hand_position=0.0, duration_s=self.config.hold_s)
-                self._move_arm(target.arm_joint_deg, hand_position=0.0, duration_s=self.config.move_s, carry_object=True)
-                self._move_arm(target.arm_joint_deg, hand_position=80.0, duration_s=self.config.hold_s)
-                self._set_object_xyz(target.object_xyz)
+                source_approach = self._solve_site_ik(
+                    (source.object_xyz[0], source.object_xyz[1], self.config.approach_z_m),
+                    source.arm_joint_deg,
+                )
+                source_grasp = self._solve_site_ik(
+                    (source.object_xyz[0], source.object_xyz[1], self.config.grasp_z_m),
+                    source_approach,
+                )
+                target_approach = self._solve_site_ik(
+                    (target.object_xyz[0], target.object_xyz[1], self.config.approach_z_m),
+                    target.arm_joint_deg,
+                )
+                target_place = self._solve_site_ik(
+                    (target.object_xyz[0], target.object_xyz[1], self.config.grasp_z_m),
+                    target_approach,
+                )
+
+                self._move_arm(source_approach, hand_position=80.0, duration_s=self.config.move_s)
+                self._move_arm(source_grasp, hand_position=80.0, duration_s=self.config.move_s)
+                self._move_arm(source_grasp, hand_position=0.0, duration_s=self.config.hold_s)
+                attached = self._can_attach(source.object_xyz)
+                if attached:
+                    self._carry_object_under_gripper()
+                    self._move_arm(source_approach, hand_position=0.0, duration_s=self.config.move_s, carry_object=True)
+                    self._move_arm(target_approach, hand_position=0.0, duration_s=self.config.move_s, carry_object=True)
+                    self._move_arm(target_place, hand_position=0.0, duration_s=self.config.move_s, carry_object=True)
+                    self._move_arm(target_place, hand_position=80.0, duration_s=self.config.hold_s, carry_object=True)
+                    self._set_object_xyz(target.object_xyz)
+                else:
+                    print("  grasp failed: gripper did not reach the block closely enough")
                 self._step_for(self.config.settle_s)
 
                 final_xyz = self._object_xyz()
                 error_m = self._distance(final_xyz, target.object_xyz)
-                success = error_m <= self.config.success_tolerance_m
+                success = attached and error_m <= self.config.success_tolerance_m
                 print(f"  final xyz={self._round_xyz(final_xyz)} error={error_m:.4f}m success={success}")
                 results.append(
                     PickPlaceCycleResult(
@@ -141,8 +170,51 @@ class RepeatPickPlaceTestRunner:
 
     def _carry_object_under_gripper(self) -> None:
         pinch = np.asarray(self.data.site_xpos[self.pinch_site_id], dtype=np.float64)
-        carried_xyz = (float(pinch[0]), float(pinch[1]), max(float(pinch[2] - 0.12), PLACE_OBJECT_XYZ[2]))
+        carried_xyz = (
+            float(pinch[0]),
+            float(pinch[1]),
+            max(float(pinch[2] - self.config.carry_z_offset_m), PLACE_OBJECT_XYZ[2]),
+        )
         self._set_object_xyz(carried_xyz)
+
+    def _can_attach(self, source_xyz: tuple[float, float, float]) -> bool:
+        pinch = np.asarray(self.data.site_xpos[self.pinch_site_id], dtype=np.float64)
+        expected = np.asarray((source_xyz[0], source_xyz[1], self.config.grasp_z_m), dtype=np.float64)
+        distance = float(np.linalg.norm(pinch - expected))
+        print(f"  grasp check: pinch={self._round_xyz(tuple(float(v) for v in pinch))} distance={distance:.4f}m")
+        return distance <= self.config.attach_tolerance_m
+
+    def _solve_site_ik(
+        self,
+        target_xyz: tuple[float, float, float],
+        seed_joint_deg: tuple[float, float, float, float, float, float],
+    ) -> tuple[float, float, float, float, float, float]:
+        scratch = self.mujoco.MjData(self.model)
+        scratch.qpos[:] = self.data.qpos[:]
+        scratch.qvel[:] = 0.0
+        for qpos_adr, joint_deg in zip(self.arm_joint_qpos_adrs, seed_joint_deg):
+            scratch.qpos[qpos_adr] = np.radians(joint_deg)
+        self.mujoco.mj_forward(self.model, scratch)
+
+        jacp = np.zeros((3, self.model.nv), dtype=np.float64)
+        jacr = np.zeros((3, self.model.nv), dtype=np.float64)
+        target = np.asarray(target_xyz, dtype=np.float64)
+        for _ in range(300):
+            error = target - np.asarray(scratch.site_xpos[self.pinch_site_id], dtype=np.float64)
+            if float(np.linalg.norm(error)) < 1e-3:
+                break
+            self.mujoco.mj_jacSite(self.model, scratch, jacp, jacr, self.pinch_site_id)
+            arm_jac = jacp[:, :6]
+            delta = arm_jac.T @ np.linalg.solve(arm_jac @ arm_jac.T + 1e-4 * np.eye(3), error)
+            delta = np.clip(delta, -0.08, 0.08)
+            for index, qpos_adr in enumerate(self.arm_joint_qpos_adrs):
+                scratch.qpos[qpos_adr] += delta[index]
+            self.mujoco.mj_forward(self.model, scratch)
+
+        final_error = float(np.linalg.norm(target - np.asarray(scratch.site_xpos[self.pinch_site_id], dtype=np.float64)))
+        if final_error > 0.02:
+            raise RuntimeError(f"IK failed for target {target_xyz}: error={final_error:.4f}m")
+        return tuple(float(np.degrees(scratch.qpos[qpos_adr])) for qpos_adr in self.arm_joint_qpos_adrs)
 
     def _freejoint_qpos_adr(self, body_name: str) -> int:
         body_id = int(self.mujoco.mj_name2id(self.model, self.mujoco.mjtObj.mjOBJ_BODY, body_name))

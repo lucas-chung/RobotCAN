@@ -215,6 +215,10 @@ class MujocoJointBackend:
     def data(self):
         return self._data
 
+    @property
+    def arm_joint_qpos_adrs(self) -> tuple[int, ...]:
+        return tuple(self._arm_joint_qpos_adrs)
+
     def apply_hand_command(self, command: HandCommand) -> None:
         self._hand_command = command
         self._hand_state.enabled = command.enable
