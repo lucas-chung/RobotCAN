@@ -133,9 +133,9 @@ def _build_parser() -> argparse.ArgumentParser:
     repeat_parser.add_argument("--dt", type=float, default=0.01)
     repeat_parser.add_argument("--no-viewer", action="store_true")
     repeat_parser.add_argument("--success-tolerance", type=float, default=0.04)
-    repeat_parser.add_argument("--grasp-z", type=float, default=0.085, help="Pinch-site height used for the grasp pose, in meters.")
-    repeat_parser.add_argument("--carry-offset", type=float, default=0.055, help="Object center offset below the pinch site while carried, in meters.")
-    repeat_parser.add_argument("--attach-tolerance", type=float, default=0.02, help="Maximum pinch-site distance before the fixture attaches the block, in meters.")
+    repeat_parser.add_argument("--grasp-z", type=float, default=0.078, help="Pinch-site height used for the grasp pose, in meters.")
+    repeat_parser.add_argument("--carry-offset", type=float, default=0.035, help="Object center offset below the pinch site while carried, in meters.")
+    repeat_parser.add_argument("--attach-tolerance", type=float, default=0.018, help="Maximum pinch-site distance before the fixture attaches the block, in meters.")
 
     return parser
 

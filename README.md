@@ -151,7 +151,7 @@ tuned to make the visual grasp happen near the block top. If the local model or
 viewer angle still shows a gap, tune the fixture without editing code:
 
 ```powershell
-.\.venv\Scripts\python.exe .\main.py repeat-pick-place-test --model .\models\mujoco\ur5e_2f85_scene.xml --cycles 10 --grasp-z 0.085 --attach-tolerance 0.02 --carry-offset 0.055
+.\.venv\Scripts\python.exe .\main.py repeat-pick-place-test --model .\models\mujoco\ur5e_2f85_scene.xml --cycles 10 --grasp-z 0.078 --attach-tolerance 0.018 --carry-offset 0.035
 ```
 
 Replace the attach fixture with contact-based grasping and visual servoing as
