@@ -14,8 +14,9 @@ from robotcan.protocol import (
     HandFaultStatus,
     HandStatusFeedback,
 )
+from robotcan.app.camera_preview import main as camera_preview_main
 from robotcan.app.run_mujoco_bridge import main as bridge_main
-from robotcan.tasks import AlgorithmDemoConfig, AlgorithmDemoRunner
+from robotcan.tasks import AlgorithmDemoConfig, AlgorithmDemoRunner, VisionDetectConfig, VisionDetectDemoRunner
 from robotcan.transport.tsmaster_attached import AttachedTSMaster, TSMasterError
 
 
@@ -89,11 +90,35 @@ def _build_parser() -> argparse.ArgumentParser:
     bridge_parser.add_argument("--status-period", type=float, default=0.01)
     bridge_parser.add_argument("--fault-period", type=float, default=0.1)
     bridge_parser.add_argument("--diag-period", type=float, default=0.1)
+    bridge_parser.add_argument("--camera-preview", action="store_true")
+    bridge_parser.add_argument("--camera-name", default="gripper_depth_camera")
+    bridge_parser.add_argument("--camera-width", type=int, default=640)
+    bridge_parser.add_argument("--camera-height", type=int, default=480)
+    bridge_parser.add_argument("--camera-depth", action="store_true")
+    bridge_parser.add_argument("--camera-rgbd", action="store_true")
 
     demo_parser = subparsers.add_parser("algorithm-demo", help="Run a simple Python-side arm+hand demo while TSMaster stays open for observation.")
     _add_connection_args(demo_parser)
     demo_parser.add_argument("--command-period", type=float, default=0.05, help="Seconds between control commands sent from Python.")
     demo_parser.add_argument("--feedback-period", type=float, default=0.05, help="Seconds between feedback FIFO polls.")
+
+    camera_parser = subparsers.add_parser("camera-preview", help="Preview a MuJoCo camera without connecting to TSMaster.")
+    camera_parser.add_argument("--model", required=True)
+    camera_parser.add_argument("--camera-name", default="gripper_depth_camera")
+    camera_parser.add_argument("--width", type=int, default=640)
+    camera_parser.add_argument("--height", type=int, default=480)
+    camera_parser.add_argument("--depth", action="store_true")
+    camera_parser.add_argument("--rgbd", action="store_true")
+    camera_parser.add_argument("--dt", type=float, default=0.01)
+    camera_parser.add_argument("--duration", type=float)
+
+    vision_parser = subparsers.add_parser("vision-detect-demo", help="Detect the red MuJoCo target block from an RGB-D camera.")
+    vision_parser.add_argument("--model", required=True)
+    vision_parser.add_argument("--camera-name", default="top_camera")
+    vision_parser.add_argument("--width", type=int, default=640)
+    vision_parser.add_argument("--height", type=int, default=480)
+    vision_parser.add_argument("--duration", type=float)
+    vision_parser.add_argument("--print-period", type=float, default=0.5)
 
     return parser
 
@@ -169,6 +194,39 @@ def _print_feedback(frames) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
+    if args.command == "camera-preview":
+        camera_args = [
+            "--model",
+            args.model,
+            "--camera-name",
+            args.camera_name,
+            "--width",
+            str(args.width),
+            "--height",
+            str(args.height),
+            "--dt",
+            str(args.dt),
+        ]
+        if args.depth:
+            camera_args.append("--depth")
+        if args.rgbd:
+            camera_args.append("--rgbd")
+        if args.duration is not None:
+            camera_args.extend(["--duration", str(args.duration)])
+        return camera_preview_main(camera_args)
+
+    if args.command == "vision-detect-demo":
+        return VisionDetectDemoRunner(
+            VisionDetectConfig(
+                model_path=args.model,
+                camera_name=args.camera_name,
+                width=args.width,
+                height=args.height,
+                duration_s=args.duration,
+                print_period_s=args.print_period,
+            )
+        ).run()
+
     if args.command == "bridge":
         bridge_args = []
         bridge_args.extend(
@@ -197,6 +255,15 @@ def main(argv: list[str] | None = None) -> int:
                 str(args.diag_period),
             ]
         )
+        if args.camera_preview:
+            bridge_args.append("--camera-preview")
+        bridge_args.extend(["--camera-name", args.camera_name])
+        bridge_args.extend(["--camera-width", str(args.camera_width)])
+        bridge_args.extend(["--camera-height", str(args.camera_height)])
+        if args.camera_depth:
+            bridge_args.append("--camera-depth")
+        if args.camera_rgbd:
+            bridge_args.append("--camera-rgbd")
         try:
             return bridge_main(bridge_args)
         except RuntimeError as exc:

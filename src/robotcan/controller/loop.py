@@ -21,6 +21,7 @@ from robotcan.protocol import (
 )
 from robotcan.protocol.codec import decode_arm_control_command, decode_hand_control_command
 from robotcan.simulation.mujoco.backend import ArmCommand, HandCommand, MujocoJointBackend
+from robotcan.simulation.mujoco.camera_preview import MujocoCameraPreview
 from robotcan.transport.tsmaster_attached import AttachedTSMaster, ReceivedFrame
 
 
@@ -39,6 +40,7 @@ class TSMasterMujocoBridgeLoop:
     app: AttachedTSMaster
     backend: MujocoJointBackend
     config: BridgeLoopConfig = field(default_factory=BridgeLoopConfig)
+    camera_preview: MujocoCameraPreview | None = None
     _last_hand_command: HandCommand = field(default_factory=HandCommand)
     _last_arm_command: ArmCommand = field(default_factory=ArmCommand)
 
@@ -59,6 +61,9 @@ class TSMasterMujocoBridgeLoop:
             f" viewer={self.backend.viewer_enabled}"
             f" duration={duration_s if duration_s is not None else 'infinite'}"
         )
+        if self.camera_preview is not None:
+            print("camera preview opened")
+            self.camera_preview.update(min_period_s=0.0)
         start_time = time.perf_counter()
         last_status = start_time
         last_fault = start_time
@@ -75,6 +80,8 @@ class TSMasterMujocoBridgeLoop:
             self.backend.apply_hand_command(self._last_hand_command)
             self.backend.apply_arm_command(self._last_arm_command)
             self.backend.step(self.config.dt_s)
+            if self.camera_preview is not None:
+                self.camera_preview.update()
 
             hand_outputs = hand_state_to_outputs(self.backend.read_hand_state())
             arm_outputs = arm_state_to_outputs(self.backend.read_arm_state())

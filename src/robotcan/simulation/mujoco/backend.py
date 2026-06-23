@@ -203,6 +203,18 @@ class MujocoJointBackend:
     def viewer_enabled(self) -> bool:
         return self._viewer is not None
 
+    @property
+    def mujoco_module(self):
+        return self._mujoco
+
+    @property
+    def model(self):
+        return self._model
+
+    @property
+    def data(self):
+        return self._data
+
     def apply_hand_command(self, command: HandCommand) -> None:
         self._hand_command = command
         self._hand_state.enabled = command.enable

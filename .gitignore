@@ -7,6 +7,7 @@ __pycache__/
 .venv/
 .virtualenv-app-data/
 /RobotCAN/
+/RobotCAN-main/
 Downloads/
 *.zip
 docs/

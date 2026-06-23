@@ -21,19 +21,28 @@ The current demo uses:
 
 ### 1.1 Current architecture
 
-The project is organized around three roles:
+RobotCAN is being shaped as a modular robot consistency-test platform, not a
+single hard-coded demo. The design goal is:
 
-- `TSMaster`: send frames, inspect frames, plot signals, debug DBC behavior
-- `Python`: run bridge logic, run demo tasks, host future policies and evaluation
-- `MuJoCo`: execute robot motion and return simulated state
+- change algorithms without rewriting the task runner
+- change robot models without rewriting perception or evaluation
+- change simulation/real execution backends without rewriting policies
+
+The current high-level runtime roles are:
+
+- `TSMaster`: CAN FD upper-computer debugging, observation, DBC behavior, and manual frame tools
+- `Python`: task orchestration, perception, policies, planning, bridge logic, and evaluation
+- `MuJoCo`: robot/device simulation, RGB-D cameras, scene objects, and robot state feedback
 
 Typical data flow:
 
-1. Python or `TSMaster` sends control commands
-2. the bridge reads CAN FD commands
-3. `MuJoCo` updates arm and gripper state
-4. the bridge publishes feedback, fault, and diagnostic frames
-5. `TSMaster` displays frames, signals, and plots
+1. task runner resets or starts a test episode
+2. MuJoCo renders observations such as RGB/depth images and robot state
+3. `perception` converts raw sensor data into structured object information
+4. `policy` decides the next goal from the current observation
+5. `planning` converts goals into robot actions such as joint or gripper targets
+6. `controller`/bridge executes the action through MuJoCo and/or TSMaster CAN FD
+7. `evaluation` records success, error, timing, and repeatability metrics
 
 ### 1.2 Repository layout
 
@@ -44,14 +53,28 @@ This repository is kept fairly shallow so it is easy to browse in PyCharm or on 
 - `dbc/`: DBC files
 - `models/mujoco/`: MuJoCo scenes and assets
 - `docs/`: project notes and helper material
+- `src/robotcan/core/`: shared types and small interfaces (`Observation`, `DetectedObject`, `Policy`, `Planner`)
 - `src/robotcan/app/`: CLI entry and app commands
 - `src/robotcan/transport/`: TSMaster attach/send/receive layer
 - `src/robotcan/protocol/`: CAN FD message definitions and codecs
 - `src/robotcan/controller/`: bridge/controller logic
-- `src/robotcan/simulation/`: MuJoCo backend
-- `src/robotcan/policies/`: demo policy and future algorithm policies
+- `src/robotcan/simulation/`: MuJoCo backend, camera rendering, and preview helpers
+- `src/robotcan/perception/`: RGB-D perception such as color detection and pixel/depth projection
+- `src/robotcan/policies/`: decision policies, not raw image processing
+- `src/robotcan/planning/`: future IK, grasp generation, and trajectory planning
 - `src/robotcan/tasks/`: task orchestration
 - `src/robotcan/evaluation/`: result summary and future metrics
+
+The intended extension boundary is:
+
+- add a new detector under `perception/` if the input sensor algorithm changes
+- add a new policy under `policies/` if the task decision logic changes
+- add a new planner under `planning/` if IK, trajectory, or robot kinematics changes
+- add or swap MuJoCo XML and robot configuration when testing a different arm
+
+This keeps the later path open for YOLO, GroundingDINO, SAM, visual servoing,
+reinforcement learning, or multimodal/LLM policies without rewriting the whole
+test loop.
 
 ### 1.3 What works now
 
@@ -63,6 +86,9 @@ Current code supports:
 - CAN FD FIFO receive
 - a Python bridge between `TSMaster` and `MuJoCo`
 - a combined `UR5e + Robotiq 2F-85` MuJoCo scene
+- a gripper-mounted RGB-D camera preview
+- a fixed top RGB-D camera for perception debugging
+- red object detection with pixel/depth-to-world coordinate projection
 - separate hand and arm control/feedback messages
 - a simple Python-side demo task that can be observed in `TSMaster`
 
@@ -87,38 +113,72 @@ Current code supports:
 Check TSMaster status:
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py status --app-name robot --server-name TSMaster
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py status --app-name robot --server-name TSMaster
 ```
 
 Start simulation:
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py start --app-name robot --server-name TSMaster
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py start --app-name robot --server-name TSMaster
 ```
 
 Run the bridge:
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py bridge --app-name robot --server-name TSMaster --model D:\data\RobotCAN\models\mujoco\ur5e_2f85_scene.xml
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py bridge --app-name robot --server-name TSMaster --model .\RobotCAN-main\models\mujoco\ur5e_2f85_scene.xml
+```
+
+Run the bridge with a gripper camera preview:
+
+```powershell
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py bridge --app-name robot --server-name TSMaster --model .\RobotCAN-main\models\mujoco\ur5e_2f85_scene.xml --camera-preview --camera-rgbd
+```
+
+Preview a MuJoCo camera without TSMaster:
+
+```powershell
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py camera-preview --model .\RobotCAN-main\models\mujoco\ur5e_2f85_scene.xml --camera-name gripper_depth_camera --rgbd
+```
+
+Run the current perception demo:
+
+```powershell
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py vision-detect-demo --model .\RobotCAN-main\models\mujoco\ur5e_2f85_scene.xml
 ```
 
 Run the Python-side demo task:
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py algorithm-demo --app-name robot --server-name TSMaster
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py algorithm-demo --app-name robot --server-name TSMaster
 ```
 
 Send hand control manually:
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-control --app-name robot --server-name TSMaster --position 30 --velocity 0 --torque 0 --mode 1 --period-ms 10
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py send-control --app-name robot --server-name TSMaster --position 30 --velocity 0 --torque 0 --mode 1 --period-ms 10
 ```
 
 Send arm control manually:
 
 ```powershell
-D:\data\RobotCAN\RobotCAN\Scripts\python.exe D:\data\RobotCAN\main.py send-arm-control --app-name robot --server-name TSMaster --j1 -90 --j2 -90 --j3 90 --j4 -90 --j5 -90 --j6 0 --mode 1 --period-ms 10
+.\.venv\Scripts\python.exe .\RobotCAN-main\main.py send-arm-control --app-name robot --server-name TSMaster --j1 -90 --j2 -90 --j3 90 --j4 -90 --j5 -90 --j6 0 --mode 1 --period-ms 10
 ```
+
+### 1.6 Current vision-grasp roadmap
+
+The current implemented step is perception only:
+
+- `top_camera` renders RGB-D observations
+- `perception/color.py` detects the red target block
+- `perception/rgbd.py` converts pixel + depth into MuJoCo world coordinates
+- `tasks/vision_detect_demo.py` displays the result and prints target coordinates
+
+The next steps are:
+
+1. add a `visual_pick` policy that turns detected objects into grasp goals
+2. add an IK/grasp planner that converts end-effector goals into joint targets
+3. add a repeatable test task with episode reset, object randomization, and CSV/JSONL metrics
+4. add detector/policy variants for YOLO, visual servoing, or LLM-driven task logic
 
 ### 1.6 Recommended usage
 
