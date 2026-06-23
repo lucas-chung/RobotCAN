@@ -144,9 +144,16 @@ Run this command by itself. If a `bridge` command is already running with its
 own MuJoCo viewer, close it first or use `--no-viewer`; otherwise two MuJoCo
 windows will be open.
 
-This test is still a deterministic MuJoCo test fixture, but it now uses simple
-site-position IK to move the gripper down to the block first. The block is only
-attached after the gripper reaches the grasp pose within a distance threshold.
+This test is still a deterministic MuJoCo test fixture. It uses simple
+site-position IK to move the gripper down to the block, then only attaches the
+block when the pinch site is close enough to the grasp pose. The defaults are
+tuned to make the visual grasp happen near the block top. If the local model or
+viewer angle still shows a gap, tune the fixture without editing code:
+
+```powershell
+.\.venv\Scripts\python.exe .\main.py repeat-pick-place-test --model .\models\mujoco\ur5e_2f85_scene.xml --cycles 10 --grasp-z 0.085 --attach-tolerance 0.02 --carry-offset 0.055
+```
+
 Replace the attach fixture with contact-based grasping and visual servoing as
 those modules mature.
 

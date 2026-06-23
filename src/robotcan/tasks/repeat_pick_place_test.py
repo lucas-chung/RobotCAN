@@ -33,9 +33,9 @@ class RepeatPickPlaceConfig:
     move_s: float = 1.5
     hold_s: float = 0.4
     approach_z_m: float = 0.28
-    grasp_z_m: float = 0.14
-    carry_z_offset_m: float = 0.105
-    attach_tolerance_m: float = 0.055
+    grasp_z_m: float = 0.085
+    carry_z_offset_m: float = 0.055
+    attach_tolerance_m: float = 0.02
     success_tolerance_m: float = 0.04
     enable_viewer: bool = True
     camera_name: str = "top_camera"
