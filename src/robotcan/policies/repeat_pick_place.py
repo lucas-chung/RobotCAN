@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 HOME_JOINT_DEG = (-90.0, -90.0, 90.0, -90.0, -90.0, 0.0)
 ROTATED_JOINT_DEG = (0.0, -90.0, 90.0, -90.0, -90.0, 0.0)
-HOME_OBJECT_XYZ = (-0.134, 0.499, 0.035)
-PLACE_OBJECT_XYZ = (-0.499, -0.134, 0.035)
+HOME_OBJECT_XYZ = (-0.134, 0.499, 0.025)
+PLACE_OBJECT_XYZ = (-0.499, -0.134, 0.025)
 
 
 @dataclass(slots=True)

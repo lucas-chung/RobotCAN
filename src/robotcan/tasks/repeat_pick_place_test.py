@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 import time
 
 import numpy as np
 
 from robotcan.core.types import Observation
 from robotcan.perception.color import RedObjectDetector
-from robotcan.policies.repeat_pick_place import PLACE_OBJECT_XYZ, RepeatPickPlacePolicy
+from robotcan.policies.repeat_pick_place import RepeatPickPlacePolicy
 from robotcan.simulation.mujoco.backend import ArmCommand, HandCommand, MujocoJointBackend
 
 
@@ -30,12 +29,11 @@ class RepeatPickPlaceConfig:
     cycles: int = 10
     dt_s: float = 0.01
     settle_s: float = 0.8
-    move_s: float = 1.5
-    hold_s: float = 0.4
+    move_s: float = 1.0
+    hold_s: float = 1.0
     approach_z_m: float = 0.28
-    grasp_z_m: float = 0.078
-    carry_z_offset_m: float = 0.035
-    attach_tolerance_m: float = 0.018
+    grasp_z_m: float = 0.03
+    grip_position: float = 60.0
     success_tolerance_m: float = 0.04
     enable_viewer: bool = True
     camera_name: str = "top_camera"
@@ -55,6 +53,9 @@ class RepeatPickPlaceTestRunner:
         self.data = self.backend.data
         self.mujoco = self.backend.mujoco_module
         self.object_qpos_adr = self._freejoint_qpos_adr("demo_object")
+        self.object_geom_id = self._geom_id("demo_object_geom")
+        self.left_pad_geom_ids = tuple(self._geom_id(name) for name in ("left_pad1", "left_pad2"))
+        self.right_pad_geom_ids = tuple(self._geom_id(name) for name in ("right_pad1", "right_pad2"))
         self.pinch_site_id = int(self.mujoco.mj_name2id(self.model, self.mujoco.mjtObj.mjOBJ_SITE, "pinch"))
         self.renderer = self.mujoco.Renderer(self.model, height=480, width=640)
         self.detector = RedObjectDetector(self.model, self.data, self.config.camera_name)
@@ -62,8 +63,9 @@ class RepeatPickPlaceTestRunner:
 
     def run(self) -> list[PickPlaceCycleResult]:
         results: list[PickPlaceCycleResult] = []
-        self._set_object_xyz(self.policy.home.object_xyz)
         self._move_arm(self.policy.home.arm_joint_deg, hand_position=80.0, duration_s=self.config.settle_s)
+        self._set_object_xyz(self.policy.home.object_xyz)
+        self._step_for(self.config.settle_s)
 
         try:
             for cycle in range(self.config.cycles):
@@ -92,22 +94,21 @@ class RepeatPickPlaceTestRunner:
 
                 self._move_arm(source_approach, hand_position=80.0, duration_s=self.config.move_s)
                 self._move_arm(source_grasp, hand_position=80.0, duration_s=self.config.move_s)
-                self._move_arm(source_grasp, hand_position=0.0, duration_s=self.config.hold_s)
-                attached = self._can_attach(source.object_xyz)
-                if attached:
-                    self._carry_object_under_gripper()
-                    self._move_arm(source_approach, hand_position=0.0, duration_s=self.config.move_s, carry_object=True)
-                    self._move_arm(target_approach, hand_position=0.0, duration_s=self.config.move_s, carry_object=True)
-                    self._move_arm(target_place, hand_position=0.0, duration_s=self.config.move_s, carry_object=True)
-                    self._move_arm(target_place, hand_position=80.0, duration_s=self.config.hold_s, carry_object=True)
-                    self._set_object_xyz(target.object_xyz)
-                else:
-                    print("  grasp failed: gripper did not reach the block closely enough")
+                self._move_arm(source_grasp, hand_position=self.config.grip_position, duration_s=self.config.hold_s)
+                left_contact, right_contact = self._object_pad_contacts()
+                print(f"  grasp contacts: left={left_contact} right={right_contact}")
+                self._move_arm(source_approach, hand_position=self.config.grip_position, duration_s=self.config.move_s)
+                lifted_xyz = self._object_xyz()
+                lifted = lifted_xyz[2] > source.object_xyz[2] + 0.04
+                print(f"  lifted xyz={self._round_xyz(lifted_xyz)} lifted={lifted}")
+                self._move_arm(target_approach, hand_position=self.config.grip_position, duration_s=self.config.move_s)
+                self._move_arm(target_place, hand_position=self.config.grip_position, duration_s=self.config.move_s)
+                self._move_arm(target_place, hand_position=80.0, duration_s=self.config.hold_s)
                 self._step_for(self.config.settle_s)
 
                 final_xyz = self._object_xyz()
                 error_m = self._distance(final_xyz, target.object_xyz)
-                success = attached and error_m <= self.config.success_tolerance_m
+                success = error_m <= self.config.success_tolerance_m
                 print(f"  final xyz={self._round_xyz(final_xyz)} error={error_m:.4f}m success={success}")
                 results.append(
                     PickPlaceCycleResult(
@@ -137,7 +138,6 @@ class RepeatPickPlaceTestRunner:
         joint_deg: tuple[float, float, float, float, float, float],
         hand_position: float,
         duration_s: float,
-        carry_object: bool = False,
     ) -> None:
         steps = max(1, int(duration_s / self.config.dt_s))
         command = ArmCommand(enable=True, mode=1, joint_targets_deg=list(joint_deg))
@@ -146,8 +146,6 @@ class RepeatPickPlaceTestRunner:
             self.backend.apply_arm_command(command)
             self.backend.apply_hand_command(hand)
             self.backend.step(self.config.dt_s)
-            if carry_object:
-                self._carry_object_under_gripper()
             time.sleep(self.config.dt_s)
 
     def _step_for(self, duration_s: float) -> None:
@@ -168,21 +166,17 @@ class RepeatPickPlaceTestRunner:
             return None
         return detections[0].world_xyz_m
 
-    def _carry_object_under_gripper(self) -> None:
-        pinch = np.asarray(self.data.site_xpos[self.pinch_site_id], dtype=np.float64)
-        carried_xyz = (
-            float(pinch[0]),
-            float(pinch[1]),
-            max(float(pinch[2] - self.config.carry_z_offset_m), PLACE_OBJECT_XYZ[2]),
-        )
-        self._set_object_xyz(carried_xyz)
-
-    def _can_attach(self, source_xyz: tuple[float, float, float]) -> bool:
-        pinch = np.asarray(self.data.site_xpos[self.pinch_site_id], dtype=np.float64)
-        expected = np.asarray((source_xyz[0], source_xyz[1], self.config.grasp_z_m), dtype=np.float64)
-        distance = float(np.linalg.norm(pinch - expected))
-        print(f"  grasp check: pinch={self._round_xyz(tuple(float(v) for v in pinch))} distance={distance:.4f}m")
-        return distance <= self.config.attach_tolerance_m
+    def _object_pad_contacts(self) -> tuple[bool, bool]:
+        left_contact = False
+        right_contact = False
+        for index in range(self.data.ncon):
+            contact = self.data.contact[index]
+            geom_pair = {int(contact.geom1), int(contact.geom2)}
+            if self.object_geom_id not in geom_pair:
+                continue
+            left_contact = left_contact or any(geom_id in geom_pair for geom_id in self.left_pad_geom_ids)
+            right_contact = right_contact or any(geom_id in geom_pair for geom_id in self.right_pad_geom_ids)
+        return left_contact, right_contact
 
     def _solve_site_ik(
         self,
@@ -222,6 +216,12 @@ class RepeatPickPlaceTestRunner:
         if joint_id < 0:
             raise RuntimeError(f"Body {body_name!r} does not have a freejoint.")
         return int(self.model.jnt_qposadr[joint_id])
+
+    def _geom_id(self, geom_name: str) -> int:
+        geom_id = int(self.mujoco.mj_name2id(self.model, self.mujoco.mjtObj.mjOBJ_GEOM, geom_name))
+        if geom_id < 0:
+            raise RuntimeError(f"Unable to resolve MuJoCo geom {geom_name!r}.")
+        return geom_id
 
     def _set_object_xyz(self, xyz: tuple[float, float, float]) -> None:
         adr = self.object_qpos_adr
